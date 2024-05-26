@@ -1,0 +1,22 @@
+version: '3'
+services:
+  mqtt-broker:
+    image: eclipse-mosquitto
+    container_name: mqtt-broker
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    networks:
+      - mqtt-network
+    restart: always
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-logs:/mosquitto/log
+
+networks:
+  mqtt-network:
+
+volumes:
+  mosquitto-data:
+  mosquitto-logs:
