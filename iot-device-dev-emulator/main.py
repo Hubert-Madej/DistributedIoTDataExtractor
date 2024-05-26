@@ -37,8 +37,6 @@ def main():
     print(f"Error: {e}")
     return
 
-  print(client.protocol)
-
   batch = 10
   while batch > 0:
     # Generate Mock Data
