@@ -1,2 +1,4 @@
 paho-mqtt
 python-dotenv
+boto3
+botocore

@@ -3,7 +3,9 @@ import random
 import time
 import paho.mqtt.client as mqtt
 from dotenv import load_dotenv
+from utils.config import load_config
 
+load_config()
 load_dotenv()
 
 # @TODO - Add device information to simulator.

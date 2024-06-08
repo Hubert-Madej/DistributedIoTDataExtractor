@@ -1,10 +1,12 @@
-version: '3'
 services:
   mqtt-broker:
     image: eclipse-mosquitto
     container_name: mqtt-broker
     ports:
+        # IoT Devices
       - "1883:1883"
+        # IoT Gateway
+      - "1884:1884"
       - "9001:9001"
     networks:
       - mqtt-network
@@ -14,9 +16,110 @@ services:
       - mosquitto-data:/mosquitto/data
       - mosquitto-logs:/mosquitto/log
 
+  kafka-broker:
+      image: wurstmeister/kafka
+      container_name: kafka-broker
+      ports:
+        - "9092:9092"  # This is the OUTSIDE listener
+        - "9093:9093"  # This is the INSIDE listener
+      environment:
+        KAFKA_ADVERTISED_LISTENERS: INSIDE://kafka-broker:9093,OUTSIDE://localhost:9092
+        KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INSIDE:PLAINTEXT,OUTSIDE:PLAINTEXT
+        KAFKA_LISTENERS: INSIDE://0.0.0.0:9093,OUTSIDE://0.0.0.0:9092
+        KAFKA_INTER_BROKER_LISTENER_NAME: INSIDE
+        KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      networks:
+        - kafka-network
+      depends_on:
+        - zookeeper
+
+  zookeeper:
+    image: wurstmeister/zookeeper
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    networks:
+      - kafka-network
+
+  flink-jobmanager:
+    image: flink:latest
+    container_name: flink-jobmanager
+    command: jobmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: flink-jobmanager
+        taskmanager.numberOfTaskSlots: 2
+    ports:
+      - "8081:8081"
+    networks:
+      - kafka-network
+
+  flink-taskmanager:
+    image: flink:latest
+    container_name: flink-taskmanager
+    command: taskmanager
+    depends_on:
+      - flink-jobmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: flink-jobmanager
+        taskmanager.numberOfTaskSlots: 2
+    networks:
+      - kafka-network
+
+  influxdb:
+    image: influxdb:latest
+    container_name: influxdb
+    ports:
+      - "8086:8086"
+    networks:
+      - db-network
+    volumes:
+      - influxdb-data:/var/lib/influxdb
+
+  jupyter:
+    image: jupyter/scipy-notebook
+    container_name: jupyter
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./notebooks:/home/jovyan/work
+    networks:
+      - db-network
+    environment:
+      - JUPYTER_TOKEN=mytoken
+
+  iot-gateway:
+    build: ./iot-gateway
+    container_name: iot-gateway
+    networks:
+      - mqtt-network
+      - kafka-network
+    depends_on:
+      - mqtt-broker
+      - kafka-broker
+
+  localstack:
+      container_name: "${LOCALSTACK_DOCKER_NAME:-localstack-main}"
+      image: localstack/localstack
+      ports:
+        - "127.0.0.1:4566:4566"            # LocalStack Gateway
+        - "127.0.0.1:4510-4559:4510-4559"  # external services port range
+      environment:
+        # LocalStack configuration: https://docs.localstack.cloud/references/configuration/
+        - DEBUG=${DEBUG:-0}
+      volumes:
+        - "${LOCALSTACK_VOLUME_DIR:-./volume}:/var/lib/localstack"
+        - "/var/run/docker.sock:/var/run/docker.sock"
+
 networks:
   mqtt-network:
+  kafka-network:
+  db-network:
 
 volumes:
   mosquitto-data:
   mosquitto-logs:
+  influxdb-data:
